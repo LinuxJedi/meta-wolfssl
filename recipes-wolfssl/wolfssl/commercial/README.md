@@ -55,6 +55,8 @@
     `WOLFSSL_SRC_SHA = "<SHA_HASH>"`: `<SHA_HASH>` This is the sha hash given when you received the bundle.
     `WOLFSSL_SRC_PASS = "<PASSWORD>"`: `<PASSWORD>` This is the password given to unarchive the bundle.
     `WOLFSSL_SRC = "<BUNDLE_NAME>"`: `<BUNDLE_NAME>` This is the name of the bundle you wish to use without the .7z extension.  
+    `WOLFSSL_FIPS_HASH_MODE = "auto"` (default) controls whether BitBake performs the additional hash pass automatically. Set it to `"manual"` if you plan to capture the hash yourself.
+    Optional: set `WOLFSSL_FIPS_QEMU_EXTRA` if your QEMU invocation needs extra flags (for example, `-cpu cortex-a53`). When the build and target architectures match, the recipe will automatically invoke the target dynamic loader from `${STAGING_DIR_TARGET}` so you get the right glibc. You can still force native execution by exporting `WOLFSSL_FIPS_FORCE_NATIVE = "1"` or force QEMU with `WOLFSSL_FIPS_FORCE_QEMU = "1"`.
 
 6. **Clean and Build wolfssl and wolfcrypttest**
 
@@ -70,35 +72,21 @@
 
    Perform a bitbake on your image recipe, for example: `bitbake core-image-minimal`.
 
-8. **Extract the Hash Value**
+8. **Automatic FIPS Hash Capture (Default)**
 
-    Skip to Step:10 if you are using the commercial bundle of wolfssl
+    With `WOLFSSL_FIPS_HASH_MODE` left at its default value `auto`, `bitbake wolfssl` now performs the extra hash pass internally:
 
-    After compiling the image, extract the hash through QEMU or by loading the image on hardware. Use `runqemu nographic` for testing with QEMU.
+    - The recipe first builds wolfSSL with a placeholder hash.
+    - It then launches the bundled `wolfcrypt/test/.libs/testwolfcrypt` binary (directly or under QEMU user-mode when `BUILD_ARCH != TARGET_ARCH`) to capture the reported core hash.
+    - The hash is written to `${WORKDIR}/wolfssl-fips.hash` (see `${T}/wolfssl-fips-hash.log` for the raw output) and the library is rebuilt automatically with the captured value embedded.
+    - When `BUILD_ARCH != TARGET_ARCH`, the task uses `qemu-<arch>` from `qemu-native` (add extra args via `WOLFSSL_FIPS_QEMU_EXTRA`). When `BUILD_ARCH == TARGET_ARCH`, it runs the binary via the target dynamic loader in `${STAGING_DIR_TARGET}` so the correct glibc is used; fallbacks include setting `WOLFSSL_FIPS_FORCE_QEMU = "1"` to always use QEMU or `WOLFSSL_FIPS_FORCE_NATIVE = "1"` to run directly when you know the host glibc is compatible.
 
-    Once you are inside the qemu image and logged in use the command `wolfcrypttest`. This should produce the following error:
+    No manual QEMU session is required anymore as long as a matching `qemu-<arch>` binary is available from `qemu-native`. You can pass additional flags through `WOLFSSL_FIPS_QEMU_EXTRA` or override the test arguments with `WOLFSSL_FIPS_TEST_ARGS` if your environment needs them.
 
-    ```
-    in my Fips callback, ok = 0, err = -203
-    message = In Core Integrity check FIPS error
-    hash = <HASH_VALUE>
-    In core integrity hash check failure, copy above hash
-    into verifyCore[] in fips_test.c and rebuild
-    RANDOM   test failed!
-    error L=15305 code=-197 (FIPS mode not allowed error)
-    [fiducial line numbers: 7943 25060 37640 49885]
-    Exiting main with return code: -1
-    ```
+9. **Manual Hash Capture (Fallback)**
 
-    Copy or write down the resulting `<HASH_VALUE>`, then exit the qemu image
-
-9. ** Update/Add the variables in your project's `build/conf/local.conf`:**
-
-    Open `build/conf/local.conf`: file in a text editor and add/update the `<FIPS_HASH>` variable with the copied `<HASH_VALUE>`.
-
-    `FIPS_HASH = "<HASH_VALUE>"`
+    If user-mode QEMU for your target architecture is unavailable, set `WOLFSSL_FIPS_HASH_MODE = "manual"` inside `build/conf/local.conf`. Rebuild the image once, boot it (or run under `runqemu`), execute `wolfcrypttest`, copy the printed `hash = <HASH_VALUE>`, and then add `FIPS_HASH = "<HASH_VALUE>"` to `local.conf`.
 
 10. **Rebuild and Test**
 
-    Perform bitbake on wolfssl and wolfcrypttest again to ensure they compile correctly. Rebuild your image and test with QEMU as before. The command `wolfcrypttest` should result in no errors.
-
+    Perform `bitbake wolfssl` (and `wolfcrypttest` if desired) again. When running in auto mode, the command `wolfcrypttest` inside your final image should complete with no errors after the second pass.
