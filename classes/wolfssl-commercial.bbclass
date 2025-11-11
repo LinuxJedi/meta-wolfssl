@@ -21,6 +21,9 @@
 # Add p7zip-native dependency
 DEPENDS += "p7zip-native"
 
+# The commercial helper fully manages extraction, so skip BitBake's default do_unpack
+do_unpack[noexec] = "1"
+
 # Commercial bundles already ship generated configure scripts, so skip autoreconf
 AUTOTOOLS_AUTORECONF = "no"
 
