@@ -6,7 +6,10 @@ SECTION = "libs"
 
 # Commercial/FIPS license - Update when using commercial bundle
 LICENSE = "Proprietary"
-LIC_FILES_CHKSUM = "file://${WOLFSSL_LICENSE};md5=${WOLFSSL_LICENSE_MD5}"
+LIC_FILES_CHKSUM = "file://${WOLFSSL_LICENSE_FILE};md5=${WOLFSSL_LICENSE_MD5}"
+WOLFSSL_LICENSE ?= "WolfSSL_LicenseAgmt_JAN-2024.pdf"
+WOLFSSL_LICENSE_MD5 ?= "9b56a02d020e92a4bd49d0914e7d7db8"
+
 
 DEPENDS += "util-linux-native"
 
@@ -43,6 +46,21 @@ SRC_URI[sha256sum] = "${WOLFSSL_SRC_SHA}"
 
 S = "${WORKDIR}/${WOLFSSL_SRC}"
 
+python () {
+    import os
+
+    license_path = d.getVar('WOLFSSL_LICENSE')
+    if not license_path:
+        return
+
+    if not os.path.isabs(license_path):
+        license_path = os.path.join(d.getVar('WORKDIR'), license_path)
+        if not os.path.exists(license_path):
+            license_path = os.path.join(d.getVar('S'), d.getVar('WOLFSSL_LICENSE'))
+
+    d.setVar('WOLFSSL_LICENSE_FILE', license_path)
+}
+
 inherit autotools pkgconfig wolfssl-helper wolfssl-commercial wolfssl-fips-helper
 
 # Skip the package check for wolfssl-fips itself (it's the base library)
@@ -57,4 +75,3 @@ EXTRA_OECONF += " \
     --enable-fips=v5 \
     --enable-reproducible-build \
 "
-
