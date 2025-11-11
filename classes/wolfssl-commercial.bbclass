@@ -21,6 +21,9 @@
 # Add p7zip-native dependency
 DEPENDS += "p7zip-native"
 
+# Commercial bundles already ship generated configure scripts, so skip autoreconf
+AUTOTOOLS_AUTORECONF = "no"
+
 # Generic variables for commercial bundle extraction
 COMMERCIAL_BUNDLE_DIR ?= ""
 COMMERCIAL_BUNDLE_NAME ?= ""
@@ -94,4 +97,3 @@ do_commercial_stub_autogen() {
 
 # Add task after commercial_extract, before configure
 addtask commercial_stub_autogen after do_commercial_extract before do_configure
-
